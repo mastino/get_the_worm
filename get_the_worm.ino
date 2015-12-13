@@ -7,31 +7,42 @@
  * Brian J Gravelle (bgravelle5@gmail.com)
  *
  * First started: Sept. 23 2015
- * Last modified: Sept. 26 2015
+ * Last modified: Dec. 12 2015
 */
 
 #include <TimerOne.h>
+#include <LiquidCrystal.h>
 
 #define LED_PIN 2
 #define BUT_PIN 7
 #define BUZ_PIN 4
 
-#define START_SEC 0
-#define START_MIN 25
-#define START_HOU 23
-#define ALARM_MIN 30
-#define ALARM_HOU 6
+#define START_SEC 50
+#define START_MIN 59
+#define START_HOU 6
+#define ALARM_MIN 0
+#define ALARM_HOU 7
+#define PUSH_TIME 30000 //5 minutes in milliseconds
 //#define PUSH_TIME 300000 //5 minutes in milliseconds
-#define PUSH_TIME 60000 //1 minute in milliseconds
+//#define PUSH_TIME 180000 //3 minutes in milliseconds
+//#define PUSH_TIME 60000 //1 minute in milliseconds
+#define PUSH_MULT 1
+
+#define THIRTY_S  30000
+#define ONE_MIN   60000
 
 char second, minute, hour;
 bool is_alarm; 
 bool is_half_count = false;
 
-void increment_time();
+LiquidCrystal lcd(3, 5, 8, 9, 10, 11);
 
-//only starts alarm
 void check_alarm();
+void ring_alarm_hold();
+void ring_alarm_pushup();
+void do_excercise(char* message, unsigned long ex_time);
+void increment_time();
+void print_time();
 
 void setup() {
 
@@ -48,35 +59,16 @@ void setup() {
   minute = START_MIN;
   hour   = START_HOU;
   
+  lcd.begin(16, 2);
+  print_time();
+  print_alarm();
+  
 }
  
 void loop() {
-
-   unsigned long time;
-
    if(is_alarm) {
-      digitalWrite(LED_PIN, HIGH);
-      digitalWrite(BUZ_PIN, HIGH);
-      while(digitalRead(BUT_PIN) != HIGH);
-      digitalWrite(BUZ_PIN, LOW);
-
-      time = millis();
-      do {
-         while(digitalRead(BUT_PIN) != HIGH) {
-           time = millis();
-           digitalWrite(BUZ_PIN, HIGH);
-           digitalWrite(LED_PIN, HIGH);
-         }
-         digitalWrite(BUZ_PIN, LOW);
-         digitalWrite(LED_PIN, HIGH);
-         delay(100);
-         digitalWrite(LED_PIN, LOW);
-         delay(100);
-
-      } while( (millis() - time) < PUSH_TIME );
-      is_alarm = false;
+      ring_alarm_pushup();
    }
-
 }
  
 
@@ -87,9 +79,82 @@ void timer_isr() {
       check_alarm();
    }
 }
+
+void ring_alarm_pushup(){
+  
+   digitalWrite(LED_PIN, HIGH);
+   digitalWrite(BUZ_PIN, HIGH);
+   while(digitalRead(BUT_PIN) != HIGH);
+   digitalWrite(BUZ_PIN, LOW);
+ 
+   do_excercise("Pushups GO!", ONE_MIN);
+   digitalWrite(LED_PIN, HIGH);
+   digitalWrite(BUZ_PIN, HIGH);
+   while(digitalRead(BUT_PIN) != HIGH);
+   digitalWrite(BUZ_PIN, LOW);
+   
+   do_excercise("Plank", THIRTY_S);
+   digitalWrite(LED_PIN, HIGH);
+   digitalWrite(BUZ_PIN, HIGH);
+   while(digitalRead(BUT_PIN) != HIGH);
+   digitalWrite(BUZ_PIN, LOW);
+   
+   is_alarm = false;
+
+}
+
+void do_excercise(char* message, unsigned long ex_time) {
+   unsigned long time;
+  
+   time = millis();
+   lcd.clear();
+   while( (millis() - time) < ex_time ) {
+     lcd.setCursor(0, 1);
+     lcd.print(message);
+     delay(100);
+     digitalWrite(LED_PIN, HIGH);
+     delay(100);
+     digitalWrite(LED_PIN, LOW);
+   }
+}
+
+void ring_alarm_hold(){
+   unsigned long time;
+   
+   digitalWrite(LED_PIN, HIGH);
+   digitalWrite(BUZ_PIN, HIGH);
+   while(digitalRead(BUT_PIN) != HIGH);
+   digitalWrite(BUZ_PIN, LOW);
+
+   for (int i = 0; i < PUSH_MULT; i++) {
+     time = millis();
+     do {
+       digitalWrite(BUZ_PIN, LOW);
+       digitalWrite(LED_PIN, HIGH);
+       
+       while(digitalRead(BUT_PIN) != HIGH) {
+          digitalWrite(BUZ_PIN, HIGH);
+          time = millis();
+       }
+       
+       delay(100);
+       digitalWrite(LED_PIN, LOW);
+       delay(100);
+     } while( (millis() - time) < PUSH_TIME );
+   }
+   digitalWrite(LED_PIN, HIGH);
+   is_alarm = false;
+   digitalWrite(LED_PIN, LOW);
+}
+
+//only starts alarm
+void check_alarm() { 
+  if( (hour == ALARM_HOU) && (minute == ALARM_MIN) )
+     is_alarm = true;
+}
+
    
 void increment_time() {
-   
    second++;
    if(second >= 60) {
       second = 0;
@@ -102,13 +167,33 @@ void increment_time() {
    if(hour >= 24) {
       hour = 0;
    }  
-
+   lcd.clear();
+   print_time();
+   if(!is_alarm)
+     print_alarm();
 }
 
-//only starts alarm
-void check_alarm() { 
-  
-  if( (hour == ALARM_HOU) && (minute == ALARM_MIN) )
-     is_alarm = true;
-     
+
+void print_alarm() {
+  lcd.setCursor(0, 1);
+  lcd.print("Alarm: ");
+  lcd.print(ALARM_HOU/10);
+  lcd.print(ALARM_HOU%10);
+  lcd.print(":");
+  lcd.print(ALARM_MIN/10);
+  lcd.print(ALARM_MIN%10);
+  lcd.print(":00");
+}
+
+void print_time() {
+  lcd.setCursor(0, 0);
+  lcd.print("Time:  ");
+  lcd.print((int)(hour/10));
+  lcd.print((int)(hour%10));
+  lcd.print(":");
+  lcd.print((int)(minute/10));
+  lcd.print((int)(minute%10));
+  lcd.print(":");
+  lcd.print((int)(second/10));
+  lcd.print((int)(second%10));
 }
